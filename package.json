@@ -17,7 +17,9 @@
     "eslint-config-next": "13.1.2",
     "jotai": "^1.13.0",
     "jotai-location": "^0.3.3",
+    "jotai-optics": "^0.2.0",
     "next": "13.1.2",
+    "optics-ts": "^2.4.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "typescript": "4.9.4"

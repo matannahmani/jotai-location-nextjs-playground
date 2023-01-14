@@ -1,22 +1,44 @@
+/* eslint-disable react/display-name */
+import { NoSSR } from '@/components/NoSSR';
 import { atomWithSearch } from '@/components/atomWithSearch';
 import { useDate } from '@/components/useDate';
-import { useAtomValue } from 'jotai';
-import { atomWithLocation } from 'jotai-location';
-
-export const userWithSearch = atomWithSearch('state', {
-  id: '3',
-  date: new Date().toISOString(),
-});
+import { userAtom } from '@/components/user/atom';
+import UserDate from '@/components/user/date';
+import UserId from '@/components/user/id';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 
 const UserPre = () => {
-  const { id, date } = useAtomValue(userWithSearch);
+  const router = useRouter();
+  const setUser = useSetAtom(userAtom);
+
+  const randomID = () => {
+    const id = Math.floor(Math.random() * 100);
+    setUser((prev) => ({ ...prev, id }));
+  };
+
+  const randomDate = () => {
+    const date = new Date().toISOString();
+    setUser((prev) => ({ ...prev, date }));
+  };
 
   return (
     <>
-      <h1>User {id}</h1>
-      <h2>Date {date}</h2>
+      <UserId />
+      <UserDate />
+      <button onClick={randomID}>Random ID</button>
+      <button style={{ margin: 8 }} onClick={randomDate}>
+        Random Date
+      </button>
+      <button onClick={() => router.back()}>Go Back</button>
+      <Link href="/">Home page</Link>
     </>
   );
 };
 
-export default UserPre;
+export default () => (
+  <NoSSR>
+    <UserPre />
+  </NoSSR>
+);

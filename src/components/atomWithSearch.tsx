@@ -12,6 +12,39 @@ type SetStateActionWithReset<Value> =
   | typeof RESET
   | ((prev: Value) => Value | typeof RESET);
 
+/**
+ * Simple object check.
+ * @param item
+ * @returns {boolean}
+ */
+export function isObject(item: any) {
+  return item && typeof item === 'object' && !Array.isArray(item);
+}
+
+/**
+ * Deep merge two objects.
+ * @param target
+ * @param ...sources
+ */
+// @ts-expect-error
+export function mergeDeep(target: any, ...sources: any) {
+  if (!sources.length) return target;
+  const source = sources.shift();
+
+  if (isObject(target) && isObject(source)) {
+    for (const key in source) {
+      if (isObject(source[key])) {
+        if (!target[key]) Object.assign(target, { [key]: {} });
+        mergeDeep(target[key], source[key]);
+      } else {
+        Object.assign(target, { [key]: source[key] });
+      }
+    }
+  }
+
+  return mergeDeep(target, ...sources);
+}
+
 const applySearch = (searchParams: URLSearchParams) => {
   const url = new URL(window.location.href);
   url.search = searchParams.toString();
@@ -20,17 +53,22 @@ const applySearch = (searchParams: URLSearchParams) => {
 
 const extractKeyPairsFromSearch = (
   keys: IterableIterator<string>,
-  searchParams: URLSearchParams
+  searchParams: URLSearchParams,
+  initalStoreKeys: string[]
 ) => {
   const keyPairs = {};
+  let hasKeys = false;
   while (true) {
     const key = keys.next();
     if (key.done) break;
+    // skip keys that are not in the initial store
+    if (!initalStoreKeys.includes(key.value)) continue;
+    hasKeys = true;
     const value = searchParams.get(key.value);
     // @ts-expect-error
     if (value) keyPairs[key.value] = value;
   }
-  return keyPairs;
+  return { keyPairs, hasKeys };
 };
 
 export function atomWithSearch<Value>(
@@ -40,7 +78,7 @@ export function atomWithSearch<Value>(
     subscribe?: (callback: () => void) => () => void;
   }
 ): WritableAtom<Value, SetStateActionWithReset<Value>> {
-  const serialize = JSON.stringify;
+  const serialize = (v: any) => encodeURIComponent(JSON.stringify(v));
 
   let cachedStr: string | undefined = serialize(initialValue);
   let cachedValue: any = initialValue;
@@ -49,7 +87,7 @@ export function atomWithSearch<Value>(
     str = str || '';
     if (cachedStr !== str) {
       try {
-        cachedValue = JSON.parse(str);
+        cachedValue = JSON.parse(decodeURIComponent(str));
       } catch {
         return NO_STORAGE_VALUE;
       }
@@ -72,44 +110,40 @@ export function atomWithSearch<Value>(
         return NO_STORAGE_VALUE;
       }
       console.log('GET ITEM');
-      if (cachedStr !== undefined) {
-        const currentSearchParams = new URLSearchParams(window.location.search);
-        const currentStr = currentSearchParams.get(k);
-        const currentKeys = currentSearchParams.keys();
-        if (!!currentStr) {
-          console.log('currentStr', currentStr);
-          const extractedKeyPairs = extractKeyPairsFromSearch(
-            currentKeys,
-            currentSearchParams
-          );
-          cachedStr = serialize(extractedKeyPairs);
-          cachedValue = extractedKeyPairs;
-          return extractedKeyPairs;
-        } else {
-          // if first load and  no search params apply set inital value
-          applySearch(new URLSearchParams({ [k]: cachedStr }));
-
-          return initialValue;
-        }
+      if (cachedStr === undefined) {
+        cachedStr = serialize(initialValue);
+        applySearch(new URLSearchParams(cachedStr));
+        return initialValue;
       }
+      // if cachedStr is defined, we have already applied the search params
+      // we need to check if all keys exists otherwise merge inital value to it
       const searchParams = new URLSearchParams(window.location.search);
-      const storeValue = searchParams.toString();
-      return deserialize(storeValue);
+      const keys = searchParams.keys();
+      const { keyPairs, hasKeys } = extractKeyPairsFromSearch(
+        keys,
+        searchParams,
+        Object.keys(initialValue as object)
+      );
+      if (hasKeys) {
+        const mergedValue = mergeDeep(initialValue, keyPairs);
+        cachedStr = serialize(mergedValue);
+        applySearch(new URLSearchParams(cachedStr));
+        return mergedValue;
+      }
+      return initialValue;
     },
     setItem: (k: string, newValue: Value) => {
-      //   const searchParams = new URLSearchParams(window.location.search);
-      //   const serializedParamValue = serialize(newValue);
-      //   searchParams.set(k, serializedParamValue);
-      //   // Update local cache when setItem is called directly
-      //   cachedStr = serializedParamValue;
-      //   cachedValue = newValue;
-      //   applySearch(searchParams);
+      // encode the value and seraialize it
+      const serializedParamValue = serialize(newValue);
+      // Update local cache when setItem is called directly
+      cachedStr = serializedParamValue;
+      cachedValue = newValue;
+      applySearch(new URLSearchParams(serializedParamValue));
     },
     removeItem: (k: string) => {
-      console.log('REMOVE ITEM');
-      const searchParams = new URLSearchParams(window.location.search);
-      searchParams.delete(k);
-      applySearch(searchParams);
+      //   const searchParams = new URLSearchParams(window.location.search);
+      //   searchParams.delete(k);
+      applySearch(new URLSearchParams());
     },
     subscribe: (k: string, setValue: (v: Value) => void) => {
       const callback = () => {
