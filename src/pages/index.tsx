@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { Inter } from '@next/font/google';
 import styles from '@/styles/Home.module.css';
 import Link from 'next/link';
+import { userWithSearch } from './search';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,6 +22,9 @@ export default function Home() {
         <br />
         <br />
         <Link href="/user?id=2">Go to User 2</Link>
+        <br />
+        <br />
+        <Link href="/search?id=3">Go to User withSearchAtom (3)</Link>
       </div>
     </>
   );
